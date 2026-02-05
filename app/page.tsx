@@ -117,7 +117,7 @@ export default function Home() {
 
         {/* Tab Content */}
         {activeTab === 'activity' && <ActivityMonitor filters={filters} />}
-        {activeTab === 'leaderboard' && <Leaderboard filters={filters} />}
+        {activeTab === 'leaderboard' && <Leaderboard />}
         {activeTab === 'whales' && <WhaleTracker filters={filters} />}
         {activeTab === 'resistance' && <ResistanceTool filters={filters} />}
         {activeTab === 'flow' && <SharpsVsSquares filters={filters} />}
