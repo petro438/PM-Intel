@@ -78,6 +78,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const minAmount = searchParams.get('minAmount') || '5000';
   const minProfit = searchParams.get('minProfit') || '0';
+  const minROI = searchParams.get('minROI') || '0';
   const limit = searchParams.get('limit') || '50';
   const onlyTop100 = searchParams.get('onlyTop100') === 'true';
 
@@ -117,12 +118,20 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Filter by minimum profit
+    // Filter by trader criteria
     const minProfitNum = parseFloat(minProfit);
+    const minROINum = parseFloat(minROI);
     let filteredTrades = enrichedTrades;
     
     if (onlyTop100) {
       filteredTrades = enrichedTrades.filter(t => t.traderRank !== undefined && t.traderRank <= 100);
+    } else if (minROINum > 0) {
+      // Filter by ROI
+      filteredTrades = enrichedTrades.filter(t => {
+        if (!t.traderProfit || !t.traderVolume || t.traderVolume === 0) return false;
+        const roi = (t.traderProfit / t.traderVolume) * 100;
+        return roi >= minROINum;
+      });
     } else if (minProfitNum > 0) {
       filteredTrades = enrichedTrades.filter(t => 
         t.traderProfit !== undefined && t.traderProfit >= minProfitNum

@@ -26,7 +26,7 @@ interface Stats {
   profitableTraders: number;
 }
 
-export default function WhaleTracker({ filters }: { filters: any }) {
+export default function WhaleTracker() {
   const [trades, setTrades] = useState<WhaleTrade[]>([]);
   const [stats, setStats] = useState<Stats>({
     totalVolume: 0,
@@ -37,8 +37,7 @@ export default function WhaleTracker({ filters }: { filters: any }) {
   });
   const [loading, setLoading] = useState(true);
   const [minAmount, setMinAmount] = useState('5000');
-  const [minProfit, setMinProfit] = useState('0');
-  const [onlyTop100, setOnlyTop100] = useState(false);
+  const [traderFilter, setTraderFilter] = useState('all'); // all, roi, profit, top100
   const [showAmericanOdds, setShowAmericanOdds] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -54,7 +53,7 @@ export default function WhaleTracker({ filters }: { filters: any }) {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [minAmount, minProfit, onlyTop100, autoRefresh]);
+  }, [minAmount, traderFilter, autoRefresh]);
 
   async function loadWhaleTrades() {
     setLoading(true);
@@ -64,10 +63,17 @@ export default function WhaleTracker({ filters }: { filters: any }) {
         limit: '50',
       });
       
-      if (onlyTop100) {
+      // Map filter to API params
+      if (traderFilter === 'top100') {
         params.append('onlyTop100', 'true');
-      } else if (minProfit !== '0') {
-        params.append('minProfit', minProfit);
+      } else if (traderFilter === 'profit10k') {
+        params.append('minProfit', '10000');
+      } else if (traderFilter === 'profit50k') {
+        params.append('minProfit', '50000');
+      } else if (traderFilter === 'roi50') {
+        params.append('minROI', '50');
+      } else if (traderFilter === 'roi100') {
+        params.append('minROI', '100');
       }
       
       const response = await fetch(`/api/polymarket-whale-trades?${params}`);
@@ -112,34 +118,44 @@ export default function WhaleTracker({ filters }: { filters: any }) {
     return `$${amount.toFixed(0)}`;
   }
 
-  function convertToAmericanOdds(price: number): string {
-    // Price is in cents (0-100)
-    if (price < 50) {
+  function convertToAmericanOdds(price: number, outcome: string, side: 'BUY' | 'SELL'): string {
+    // Determine if this is betting YES or NO
+    // If outcome contains "No" or side is SELL, invert the price
+    const isNoOutcome = outcome.toLowerCase().includes('no') || 
+                       outcome.toLowerCase().includes('not') ||
+                       outcome.toLowerCase().includes('won\'t');
+    const isBettingNo = (side === 'SELL' && !isNoOutcome) || (side === 'BUY' && isNoOutcome);
+    
+    // Invert price if betting NO
+    const effectivePrice = isBettingNo ? (100 - price) : price;
+    
+    if (effectivePrice < 50) {
       // Underdog: positive odds
-      const odds = Math.round(((100 - price) / price) * 100);
+      const odds = Math.round(((100 - effectivePrice) / effectivePrice) * 100);
       return `+${odds}`;
     } else {
       // Favorite: negative odds
-      const odds = Math.round((price / (100 - price)) * 100);
+      const odds = Math.round((effectivePrice / (100 - effectivePrice)) * 100);
       return `-${odds}`;
     }
   }
 
-  function formatPrice(price: number): string {
+  function formatPrice(trade: WhaleTrade): string {
     if (showAmericanOdds) {
-      return convertToAmericanOdds(price);
+      return convertToAmericanOdds(trade.price, trade.outcome, trade.side);
     }
-    return `${price.toFixed(1)}¢`;
+    return `${trade.price.toFixed(1)}¢`;
   }
 
-  function getTraderBadge(trade: WhaleTrade): { emoji: string; color: string; label: string } {
+  function getTraderBadge(trade: WhaleTrade): { emoji: string; color: string; label: string } | null {
     if (trade.traderRank && trade.traderRank <= 100) {
       return { emoji: '🟢', color: 'text-green-400', label: `Top ${trade.traderRank}` };
     }
     if (trade.traderProfit && trade.traderProfit >= 10000) {
-      return { emoji: '🟡', color: 'text-yellow-400', label: formatMoney(trade.traderProfit) };
+      const roi = trade.traderVolume ? Math.round((trade.traderProfit / trade.traderVolume) * 100) : 0;
+      return { emoji: '🟡', color: 'text-yellow-400', label: `${formatMoney(trade.traderProfit)} (${roi}% ROI)` };
     }
-    return { emoji: '⚫', color: 'text-gray-500', label: 'Unknown' };
+    return null;
   }
 
   const buyPercentage = stats.totalVolume > 0 
@@ -212,21 +228,15 @@ export default function WhaleTracker({ filters }: { filters: any }) {
             Trader Filter
           </label>
           <select
-            value={onlyTop100 ? 'top100' : minProfit}
-            onChange={(e) => {
-              if (e.target.value === 'top100') {
-                setOnlyTop100(true);
-                setMinProfit('0');
-              } else {
-                setOnlyTop100(false);
-                setMinProfit(e.target.value);
-              }
-            }}
+            value={traderFilter}
+            onChange={(e) => setTraderFilter(e.target.value)}
             className="bg-[var(--dark-bg)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-2 rounded-md text-sm"
           >
-            <option value="0">All Traders</option>
-            <option value="10000">$10K+ Profit</option>
-            <option value="50000">$50K+ Profit</option>
+            <option value="all">All Traders</option>
+            <option value="profit10k">$10K+ Profit</option>
+            <option value="profit50k">$50K+ Profit</option>
+            <option value="roi50">50%+ ROI</option>
+            <option value="roi100">100%+ ROI</option>
             <option value="top100">Top 100 Only</option>
           </select>
         </div>
@@ -286,7 +296,6 @@ export default function WhaleTracker({ filters }: { filters: any }) {
                 <th className="text-center px-5 py-4 text-[0.75rem] font-bold uppercase tracking-wide text-[var(--text-muted)]">Side</th>
                 <th className="text-right px-5 py-4 text-[0.75rem] font-bold uppercase tracking-wide text-[var(--text-muted)]">Size</th>
                 <th className="text-right px-5 py-4 text-[0.75rem] font-bold uppercase tracking-wide text-[var(--text-muted)]">Price</th>
-                <th className="text-right px-5 py-4 text-[0.75rem] font-bold uppercase tracking-wide text-[var(--text-muted)]">Trader Stats</th>
               </tr>
             </thead>
             <tbody>
@@ -304,7 +313,7 @@ export default function WhaleTracker({ filters }: { filters: any }) {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{badge.emoji}</span>
+                        {badge && <span className="text-lg">{badge.emoji}</span>}
                         <div>
                           <a
                             href={`https://polymarket.com/@${trade.pseudonym || trade.proxyWallet}`}
@@ -314,7 +323,9 @@ export default function WhaleTracker({ filters }: { filters: any }) {
                           >
                             {trade.pseudonym || formatAddress(trade.proxyWallet)}
                           </a>
-                          <div className={`text-xs ${badge.color}`}>{badge.label}</div>
+                          {badge && (
+                            <div className={`text-xs ${badge.color}`}>{badge.label}</div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -340,24 +351,8 @@ export default function WhaleTracker({ filters }: { filters: any }) {
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="font-mono text-sm font-semibold">
-                        {formatPrice(trade.price)}
+                        {formatPrice(trade)}
                       </div>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      {trade.traderProfit !== undefined && (
-                        <div>
-                          <div className={`text-sm font-mono font-semibold ${
-                            trade.traderProfit >= 0 ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                            {trade.traderProfit >= 0 ? '+' : ''}{formatMoney(trade.traderProfit)}
-                          </div>
-                          {trade.traderVolume && (
-                            <div className="text-xs text-[var(--text-muted)] font-mono">
-                              {formatMoney(trade.traderVolume)} vol
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </td>
                   </tr>
                 );
