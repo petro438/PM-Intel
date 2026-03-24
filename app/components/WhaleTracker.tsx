@@ -36,8 +36,10 @@ export default function WhaleTracker() {
     profitableTraders: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState('sports');
   const [minAmount, setMinAmount] = useState('5000');
-  const [traderFilter, setTraderFilter] = useState('all'); // all, roi, profit, top100
+  const [maxPrice, setMaxPrice] = useState('90');
+  const [traderFilter, setTraderFilter] = useState('all');
   const [showAmericanOdds, setShowAmericanOdds] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
@@ -53,7 +55,7 @@ export default function WhaleTracker() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [minAmount, traderFilter, autoRefresh]);
+  }, [minAmount, maxPrice, traderFilter, autoRefresh]);
 
   async function loadWhaleTrades() {
     setLoading(true);
@@ -70,10 +72,10 @@ export default function WhaleTracker() {
         params.append('minProfit', '10000');
       } else if (traderFilter === 'profit50k') {
         params.append('minProfit', '50000');
-      } else if (traderFilter === 'roi50') {
-        params.append('minROI', '50');
-      } else if (traderFilter === 'roi100') {
-        params.append('minROI', '100');
+      } else if (traderFilter === 'roi5') {
+        params.append('minROI', '5');
+      } else if (traderFilter === 'roi10') {
+        params.append('minROI', '10');
       }
       
       const response = await fetch(`/api/polymarket-whale-trades?${params}`);
@@ -82,10 +84,55 @@ export default function WhaleTracker() {
       console.log('Whale trades data:', data);
       
       if (data.trades && Array.isArray(data.trades)) {
-        setTrades(data.trades);
+        // Client-side filtering by category and max price
+        let filtered = data.trades;
+        
+        // Filter by category
+        if (category !== 'all') {
+          filtered = filtered.filter((trade: WhaleTrade) => {
+            const title = trade.title.toLowerCase();
+            switch (category) {
+              case 'sports':
+                return title.includes('nba') || title.includes('nfl') || title.includes('nhl') || 
+                       title.includes('mlb') || title.includes('ncaa') || title.includes('soccer') ||
+                       title.includes('football') || title.includes('basketball') || title.includes('baseball') ||
+                       title.includes('game') || title.includes('match') || title.includes('championship');
+              case 'politics':
+                return title.includes('trump') || title.includes('biden') || title.includes('president') ||
+                       title.includes('election') || title.includes('senate') || title.includes('congress') ||
+                       title.includes('democrat') || title.includes('republican');
+              case 'crypto':
+                return title.includes('bitcoin') || title.includes('btc') || title.includes('eth') ||
+                       title.includes('crypto') || title.includes('ethereum') || title.includes('solana');
+              case 'economics':
+                return title.includes('fed') || title.includes('economy') || title.includes('gdp') ||
+                       title.includes('inflation') || title.includes('rate') || title.includes('stock');
+              default:
+                return true;
+            }
+          });
+        }
+        
+        // Filter by max price
+        const maxPriceNum = parseFloat(maxPrice);
+        if (maxPriceNum < 100) {
+          filtered = filtered.filter((trade: WhaleTrade) => trade.price <= maxPriceNum);
+        }
+        
+        setTrades(filtered);
+        
+        // Recalculate stats for filtered trades
+        const filteredStats = {
+          totalVolume: filtered.reduce((sum: number, t: WhaleTrade) => sum + t.size, 0),
+          buyVolume: filtered.filter((t: WhaleTrade) => t.side === 'BUY').reduce((sum: number, t: WhaleTrade) => sum + t.size, 0),
+          sellVolume: filtered.filter((t: WhaleTrade) => t.side === 'SELL').reduce((sum: number, t: WhaleTrade) => sum + t.size, 0),
+          uniqueWhales: new Set(filtered.map((t: WhaleTrade) => t.proxyWallet)).size,
+          profitableTraders: filtered.filter((t: WhaleTrade) => t.traderProfit && t.traderProfit > 0).length,
+        };
+        setStats(filteredStats);
       }
       
-      if (data.stats) {
+      if (data.stats && category === 'all' && maxPrice === '100') {
         setStats(data.stats);
       }
     } catch (error) {
@@ -120,7 +167,6 @@ export default function WhaleTracker() {
 
   function convertToAmericanOdds(price: number, outcome: string, side: 'BUY' | 'SELL'): string {
     // Determine if this is betting YES or NO
-    // If outcome contains "No" or side is SELL, invert the price
     const isNoOutcome = outcome.toLowerCase().includes('no') || 
                        outcome.toLowerCase().includes('not') ||
                        outcome.toLowerCase().includes('won\'t');
@@ -164,47 +210,25 @@ export default function WhaleTracker() {
 
   return (
     <div>
-      {/* Smart Money Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-xs text-[var(--text-muted)] uppercase mb-1">Smart Money Flow</div>
-          <div className="text-xl font-bold font-mono text-[var(--hero-green)]">
-            {formatMoney(stats.totalVolume)}
-          </div>
-          <div className="text-xs text-[var(--text-muted)] mt-1">
-            {stats.profitableTraders} profitable traders
-          </div>
-        </div>
-
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-xs text-[var(--text-muted)] uppercase mb-1">Whale Conviction</div>
-          <div className="flex items-baseline gap-2">
-            <div className="text-xl font-bold text-green-400">{buyPercentage}%</div>
-            <div className="text-sm text-[var(--text-muted)]">BUY</div>
-          </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <div className="text-xl font-bold text-red-400">{100 - buyPercentage}%</div>
-            <div className="text-sm text-[var(--text-muted)]">SELL</div>
-          </div>
-        </div>
-
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-xs text-[var(--text-muted)] uppercase mb-1">Buy Volume</div>
-          <div className="text-xl font-bold font-mono text-green-400">
-            {formatMoney(stats.buyVolume)}
-          </div>
-        </div>
-
-        <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4">
-          <div className="text-xs text-[var(--text-muted)] uppercase mb-1">Sell Volume</div>
-          <div className="text-xl font-bold font-mono text-red-400">
-            {formatMoney(stats.sellVolume)}
-          </div>
-        </div>
-      </div>
-
-      {/* Controls */}
+      {/* Single Filter Row */}
       <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4 mb-6 flex flex-wrap gap-4 items-end">
+        <div className="flex flex-col gap-2">
+          <label className="text-[0.75rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Category
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="bg-[var(--dark-bg)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-2 rounded-md text-sm"
+          >
+            <option value="all">All Categories</option>
+            <option value="sports">Sports</option>
+            <option value="politics">Politics</option>
+            <option value="crypto">Crypto</option>
+            <option value="economics">Economics</option>
+          </select>
+        </div>
+
         <div className="flex flex-col gap-2">
           <label className="text-[0.75rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Min Trade Size
@@ -225,6 +249,22 @@ export default function WhaleTracker() {
 
         <div className="flex flex-col gap-2">
           <label className="text-[0.75rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Max Price
+          </label>
+          <select
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            className="bg-[var(--dark-bg)] border border-[var(--border)] text-[var(--text-primary)] px-3 py-2 rounded-md text-sm"
+          >
+            <option value="50">50¢ or less</option>
+            <option value="70">70¢ or less</option>
+            <option value="90">90¢ or less</option>
+            <option value="100">Any price</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[0.75rem] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Trader Filter
           </label>
           <select
@@ -235,8 +275,8 @@ export default function WhaleTracker() {
             <option value="all">All Traders</option>
             <option value="profit10k">$10K+ Profit</option>
             <option value="profit50k">$50K+ Profit</option>
-            <option value="roi50">50%+ ROI</option>
-            <option value="roi100">100%+ ROI</option>
+            <option value="roi5">5%+ ROI</option>
+            <option value="roi10">10%+ ROI</option>
             <option value="top100">Top 100 Only</option>
           </select>
         </div>
