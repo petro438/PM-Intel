@@ -62,7 +62,7 @@ export default function WhaleTracker() {
     try {
       const params = new URLSearchParams({
         minAmount,
-        limit: '50',
+        limit: '200', // Increased to get more trades
       });
       
       // Map filter to API params
@@ -91,22 +91,34 @@ export default function WhaleTracker() {
         if (category !== 'all') {
           filtered = filtered.filter((trade: WhaleTrade) => {
             const title = trade.title.toLowerCase();
+            const outcome = trade.outcome.toLowerCase();
+            const combined = title + ' ' + outcome;
+            
             switch (category) {
               case 'sports':
-                return title.includes('nba') || title.includes('nfl') || title.includes('nhl') || 
-                       title.includes('mlb') || title.includes('ncaa') || title.includes('soccer') ||
-                       title.includes('football') || title.includes('basketball') || title.includes('baseball') ||
-                       title.includes('game') || title.includes('match') || title.includes('championship');
+                // Broader sports detection
+                return combined.includes('nba') || combined.includes('nfl') || combined.includes('nhl') || 
+                       combined.includes('mlb') || combined.includes('ncaa') || combined.includes('soccer') ||
+                       combined.includes('football') || combined.includes('basketball') || combined.includes('baseball') ||
+                       combined.includes('game') || combined.includes('match') || combined.includes('championship') ||
+                       combined.includes('playoff') || combined.includes('finals') || combined.includes('super bowl') ||
+                       combined.includes('world series') || combined.includes('mls') || combined.includes('ufc') ||
+                       combined.includes('boxing') || combined.includes('tennis') || combined.includes('golf') ||
+                       combined.includes('win') || combined.includes('score') || combined.includes('team') ||
+                       combined.includes('player') || combined.includes('coach');
               case 'politics':
-                return title.includes('trump') || title.includes('biden') || title.includes('president') ||
-                       title.includes('election') || title.includes('senate') || title.includes('congress') ||
-                       title.includes('democrat') || title.includes('republican');
+                return combined.includes('trump') || combined.includes('biden') || combined.includes('president') ||
+                       combined.includes('election') || combined.includes('senate') || combined.includes('congress') ||
+                       combined.includes('democrat') || combined.includes('republican') || combined.includes('vote') ||
+                       combined.includes('governor') || combined.includes('party');
               case 'crypto':
-                return title.includes('bitcoin') || title.includes('btc') || title.includes('eth') ||
-                       title.includes('crypto') || title.includes('ethereum') || title.includes('solana');
+                return combined.includes('bitcoin') || combined.includes('btc') || combined.includes('eth') ||
+                       combined.includes('crypto') || combined.includes('ethereum') || combined.includes('solana') ||
+                       combined.includes('coin') || combined.includes('blockchain');
               case 'economics':
-                return title.includes('fed') || title.includes('economy') || title.includes('gdp') ||
-                       title.includes('inflation') || title.includes('rate') || title.includes('stock');
+                return combined.includes('fed') || combined.includes('economy') || combined.includes('gdp') ||
+                       combined.includes('inflation') || combined.includes('rate') || combined.includes('stock') ||
+                       combined.includes('market') || combined.includes('recession') || combined.includes('interest');
               default:
                 return true;
             }
