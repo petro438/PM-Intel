@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface LeaderboardTrader {
   proxyWallet: string;
-  totalProfitLoss: number;
-  totalVolume: number;
+  pnl: number;  // Changed from totalProfitLoss
+  vol: number;  // Changed from totalVolume
   rank?: number;
 }
 
@@ -41,7 +41,7 @@ async function fetchLeaderboard(): Promise<Map<string, LeaderboardTrader>> {
 
   try {
     console.log('Fetching fresh leaderboard data');
-    const response = await fetch('https://data-api.polymarket.com/leaderboard?limit=100', {
+    const response = await fetch('https://data-api.polymarket.com/v1/leaderboard?limit=100', {
       headers: { 'Accept': 'application/json' },
     });
 
@@ -112,8 +112,8 @@ export async function GET(request: NextRequest) {
       
       return {
         ...trade,
-        traderProfit: traderData?.totalProfitLoss,
-        traderVolume: traderData?.totalVolume,
+        traderProfit: traderData?.pnl,
+        traderVolume: traderData?.vol,
         traderRank: traderData?.rank,
       };
     });
