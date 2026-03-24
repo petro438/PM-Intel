@@ -128,7 +128,10 @@ export default function WhaleTracker() {
         // Filter by max price
         const maxPriceNum = parseFloat(maxPrice);
         if (maxPriceNum < 100) {
-          filtered = filtered.filter((trade: WhaleTrade) => trade.price <= maxPriceNum);
+          filtered = filtered.filter((trade: WhaleTrade) => {
+            const priceInCents = trade.price <= 1 ? trade.price * 100 : trade.price;
+            return priceInCents <= maxPriceNum;
+          });
         }
         
         setTrades(filtered);
@@ -178,6 +181,9 @@ export default function WhaleTracker() {
   }
 
   function convertToAmericanOdds(price: number, outcome: string, side: 'BUY' | 'SELL'): string {
+    // Price might be 0-1 (decimal) or 0-100 (cents) - normalize to cents
+    const priceInCents = price <= 1 ? price * 100 : price;
+    
     // Determine if this is betting YES or NO
     const isNoOutcome = outcome.toLowerCase().includes('no') || 
                        outcome.toLowerCase().includes('not') ||
@@ -185,15 +191,18 @@ export default function WhaleTracker() {
     const isBettingNo = (side === 'SELL' && !isNoOutcome) || (side === 'BUY' && isNoOutcome);
     
     // Invert price if betting NO
-    const effectivePrice = isBettingNo ? (100 - price) : price;
+    const effectivePrice = isBettingNo ? (100 - priceInCents) : priceInCents;
     
-    if (effectivePrice < 50) {
+    // Clamp to valid range
+    const clampedPrice = Math.max(1, Math.min(99, effectivePrice));
+    
+    if (clampedPrice < 50) {
       // Underdog: positive odds
-      const odds = Math.round(((100 - effectivePrice) / effectivePrice) * 100);
+      const odds = Math.round(((100 - clampedPrice) / clampedPrice) * 100);
       return `+${odds}`;
     } else {
       // Favorite: negative odds
-      const odds = Math.round((effectivePrice / (100 - effectivePrice)) * 100);
+      const odds = Math.round((clampedPrice / (100 - clampedPrice)) * 100);
       return `-${odds}`;
     }
   }
@@ -202,7 +211,9 @@ export default function WhaleTracker() {
     if (showAmericanOdds) {
       return convertToAmericanOdds(trade.price, trade.outcome, trade.side);
     }
-    return `${trade.price.toFixed(1)}¢`;
+    // Handle both decimal (0-1) and cent (0-100) formats
+    const priceInCents = trade.price <= 1 ? trade.price * 100 : trade.price;
+    return `${priceInCents.toFixed(1)}¢`;
   }
 
   function getTraderBadge(trade: WhaleTrade): { emoji: string; color: string; label: string } | null {
