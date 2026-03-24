@@ -120,8 +120,7 @@ export default function Home() {
         {/* Tab Content */}
         {activeTab === 'activity' && <ActivityMonitor filters={filters} />}
         {activeTab === 'leaderboard' && <Leaderboard filters={filters} />}
-        {activeTab === 'whales' && <WhaleTracker filters={filters} />}
-        {activeTab === 'resistance' && <ResistanceTool filters={filters} />}
+{activeTab === 'whales' && <WhaleTracker />}         {activeTab === 'resistance' && <ResistanceTool filters={filters} />}
         {activeTab === 'flow' && <SharpsVsSquares filters={filters} />}
       </div>
     </div>
