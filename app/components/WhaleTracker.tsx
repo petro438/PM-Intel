@@ -84,6 +84,16 @@ export default function WhaleTracker() {
       console.log('Whale trades data:', data);
       
       if (data.trades && Array.isArray(data.trades)) {
+        // Debug: Log first few trades to see what data we're getting
+        console.log('First 3 trades with trader data:', data.trades.slice(0, 3).map((t: WhaleTrade) => ({
+          title: t.title,
+          size: t.size,
+          traderProfit: t.traderProfit,
+          traderVolume: t.traderVolume,
+          traderRank: t.traderRank,
+          calculatedROI: t.traderVolume ? ((t.traderProfit || 0) / t.traderVolume * 100).toFixed(1) : 'N/A'
+        })));
+        
         // Client-side filtering by category and max price
         let filtered = data.trades;
         
@@ -133,6 +143,9 @@ export default function WhaleTracker() {
             return priceInCents <= maxPriceNum;
           });
         }
+        
+        console.log(`Filtering results: ${data.trades.length} total → ${filtered.length} after filters`);
+        console.log(`Active filters: category=${category}, maxPrice=${maxPrice}, traderFilter=${traderFilter}`);
         
         setTrades(filtered);
         
